@@ -34,8 +34,8 @@ def get_raw_crime_data(spark, path):
     df = df.filter(df["analysis_neighborhood"].isNotNull()) \
         .filter(df["incident_category"].isNotNull()) \
         .filter(df["incident_datetime"].isNotNull())
-    df = df.withColumn("incident_timestamp", get_timestamp(col("incident_datetime"))) \
-        .withColumn("report_timestamp", get_timestamp(col("report_datetime")))
+    df = df.withColumn("incident_ts", get_timestamp(col("incident_datetime"))) \
+        .withColumn("report_ts", get_timestamp(col("report_datetime")))
     return df
 
 
@@ -49,7 +49,7 @@ def load_police_districts(spark, path, output_path):
         .withColumn("district_id", monotonically_increasing_id()) \
         .select("district_id", col("COMPANY").alias("company"), initcap(col("DISTRICT")).alias("district"))
     df_sfpd_districts.show()
-    df_sfpd_districts.write.mode("overwrite").parquet(output_path + "police_districts/")
+    df_sfpd_districts.write.mode("overwrite").orc(output_path + "police_districts")
 
 
 def load_neighborhoods(spark, path, output_path):
@@ -62,7 +62,7 @@ def load_neighborhoods(spark, path, output_path):
         .withColumn("neighborhood_id", monotonically_increasing_id())
     df_neighborhoods = df_neighborhoods.select("neighborhood_id", df_neighborhoods["NHOOD"].alias("neighborhood"))
     df_neighborhoods.show()
-    df_neighborhoods.write.mode("overwrite").parquet(output_path + "neighborhoods/")
+    df_neighborhoods.write.mode("overwrite").orc(output_path + "neighborhoods")
 
 
 def load_categories(df, output_path):
@@ -75,7 +75,7 @@ def load_categories(df, output_path):
     df_categories = df_categories.orderBy("category").withColumn("category_id", monotonically_increasing_id())
     df_categories = df_categories.select("category_id", "category")
     df_categories.show()
-    df_categories.write.mode("overwrite").parquet(output_path + "categories/")
+    df_categories.write.mode("overwrite").orc(output_path + "categories")
 
 
 def load_datetime(df, output_path):
@@ -83,18 +83,18 @@ def load_datetime(df, output_path):
         Get date and time info from unique incident and report timestamps and save to parquet files.
     """
     
-    print("-- datetime --")
-    df_datetime = df.select(col("incident_timestamp").alias("timestamp")).distinct()
-    df_datetime = df_datetime.union(df.select(col("report_timestamp").alias("timestamp")).distinct())  
+    print("-- date_time --")
+    df_datetime = df.select(col("incident_ts").alias("ts")).distinct()
+    df_datetime = df_datetime.union(df.select(col("report_ts").alias("ts")).distinct())  
     df_datetime = df_datetime.dropDuplicates()
-    df_datetime = df_datetime.withColumn("hour", hour(col("timestamp")))
-    df_datetime = df_datetime.withColumn("day", dayofmonth(col("timestamp")))
-    df_datetime = df_datetime.withColumn("month", month("timestamp"))
-    df_datetime = df_datetime.withColumn("year", year("timestamp"))
-    df_datetime = df_datetime.withColumn("week", weekofyear("timestamp"))  
+    df_datetime = df_datetime.withColumn("hour", hour(col("ts")))
+    df_datetime = df_datetime.withColumn("day", dayofmonth(col("ts")))
+    df_datetime = df_datetime.withColumn("month", month("ts"))
+    df_datetime = df_datetime.withColumn("year", year("ts"))
+    df_datetime = df_datetime.withColumn("week", weekofyear("ts"))  
     df_datetime = df_datetime.drop("datetime")
     df_datetime.show()    
-    df_datetime.write.mode("overwrite").parquet(output_path + "datetime/")
+    df_datetime.write.mode("overwrite").orc(output_path + "date_time")
 
 
 def load_incidents(spark, df, output_path):
@@ -104,24 +104,24 @@ def load_incidents(spark, df, output_path):
     """
     
     print("-- incidents --")
-    districts_table = spark.read.parquet(output_path + "police_districts")
-    neighborhoods_table = spark.read.parquet(output_path + "neighborhoods")
-    categories_table = spark.read.parquet(output_path + "categories")
+    districts_table = spark.read.orc(output_path + "police_districts")
+    neighborhoods_table = spark.read.orc(output_path + "neighborhoods")
+    categories_table = spark.read.orc(output_path + "categories")
 
     df_incidents = df.join(districts_table, districts_table.district == df.police_district) \
         .join(neighborhoods_table, neighborhoods_table.neighborhood == df.analysis_neighborhood) \
         .join(categories_table, categories_table.category == df.incident_category) \
-        .withColumn("incident_timestamp", get_timestamp(col("incident_datetime"))) \
-        .withColumn("report_timestamp", get_timestamp(col("report_datetime"))) \
-        .withColumn("incident_month", month("incident_timestamp")) \
+        .withColumn("incident_ts", get_timestamp(col("incident_datetime"))) \
+        .withColumn("report_ts", get_timestamp(col("report_datetime"))) \
+        .withColumn("incident_month", month("incident_ts")) \
         .select(
             col("incident_id"),
             col("incident_number"),
             col("district_id"),
             col("neighborhood_id"),
             col("category_id"),
-            col("incident_timestamp"),
-            col("report_timestamp"),
+            col("incident_ts"),
+            col("report_ts"),
             col("incident_description"),
             col("resolution"),
             col("intersection"),
@@ -134,7 +134,7 @@ def load_incidents(spark, df, output_path):
     count = df_incidents.count()
     print("total incidents: " + str(count))
     df_incidents.show()
-    df_incidents.write.mode('overwrite').partitionBy("year", "month").parquet(output_path + 'incidents/')
+    df_incidents.write.mode('overwrite').partitionBy("year", "month").orc(output_path + 'incidents')
 
 
 def rename_columns(df):
@@ -153,7 +153,7 @@ def main():
     spark = get_spark_session()
     spark.sparkContext.setLogLevel("ERROR")  
     path = "hdfs:///user/maria_dev/crime_data/"
-    output_path = "hdfs:///user/maria_dev/output/"
+    output_path = "/apps/hive/warehouse/sfcrime.db/"
 
     df = get_raw_crime_data(spark, path)
 
