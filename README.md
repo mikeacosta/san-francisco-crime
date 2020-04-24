@@ -7,7 +7,7 @@
 
 In this project, we are analyzing police incident report data using PySpark, Spark SQL and the [Dataframe API](https://spark.apache.org/docs/latest/sql-programming-guide.html).
 
-<b>Local Hadoop instance</b>
+### Local Hadoop instance
 
 There are various options available.  For this analysis, we are using [Hortonworks Data Platform (HDP) Sandbox](https://www.cloudera.com/downloads/hortonworks-sandbox.html) 2.5.0 running on Docker.  Spark jobs are run using Spark 2.0.
 
@@ -24,11 +24,12 @@ Primary data source is a dataset of [police incident reports](https://data.sfgov
     <img src="content/data-model.png" width="75%" height="75%" />
 </p>
 
-<b>Relational data store</b>
+### Relational data store
 
 For our data model above, data will be stored on [HDFS](https://hadoop.apache.org/docs/r1.2.1/hdfs_user_guide.html) in ORC format and [Apache Hive](https://hive.apache.org/) will be used for ad-hoc querying and data analysis.
 
 There are various methods for [creating the tables](create_tables.sql) in Hadoop, including the Hive CLI, by using Spark, and with the query editor in the Hive View in [Apache Ambari](https://ambari.apache.org/), the Hadoop management web UI that is included in HDP.
+
 
 ## ETL
 
@@ -63,13 +64,14 @@ Our application reads source data files on HDFS:
 
 transforms the data, and loads dataframes corresponding to each table in our data model.  Each dataframe is saved to its corresponding table in ORC format.
 
+
 ## Ad-hoc queries in Hive
 
 With our tables loaded, we can run queries in Hive to perform analysis on the data.  
 
 Some examples:
 
-Get a list of reported crimes in the Mission on Christmas Day, 2019:
+<b>Get a list of reported crimes in the Mission on Christmas Day, 2019:</b>
 ```
 SELECT i.incident_id, i.incident_description, i.resolution, i.intersection, dt.hour
 FROM incidents i INNER JOIN neighborhoods n ON i.neighborhood_id = n.neighborhood_id
@@ -84,7 +86,7 @@ WHERE dt.month = 12
     <img src="content/query-results1.png" width="75%" height="75%" />
 </P>
 
-Which neighborhoods had no reported burgalaries during the first week of 2020?
+<b>Which neighborhoods had no reported burgalaries during the first week of 2020?</b>
 ```
 SELECT n.* FROM neighborhoods n LEFT OUTER JOIN
 (
@@ -102,10 +104,11 @@ WHERE x.incident_id IS NULL;
 ```
 
 <p>
-    <img src="content/query-results2.png" width="65%" height="65%" />
+    <img src="content/query-results2.png" width="40%" height="40%" />
 </P>
 
-## Spark
+
+## Data analytics with Spark
 
 As we can see, Hive provides very useful SQL capability on top of Hadoop. For more complex analytics, we can use Spark which processes data in-memory.
 
@@ -142,9 +145,9 @@ root
  |-- year: integer (nullable = true)
 ```
 
-We can now [analytics.py](analyze) the crime data by performing operations on our dataframe using [Spark SQL](https://spark.apache.org/docs/latest/api/python/pyspark.sql.html).
+We can now [analyze](analytics.py) the crime data by performing operations on our dataframe using [Spark SQL](https://spark.apache.org/docs/latest/api/python/pyspark.sql.html).
 
-Here's a list of the most common reported crimes based on description.
+<b>Here's a list of the most common reported crimes based on description.</b>
 ```
 df.groupBy("description").count().sort(col("count").desc()).show()
 ```
@@ -176,7 +179,8 @@ The `show()` method displays the first 20 rows by default.  Additional rows can 
 |Missing Adult                                  |3512 |
 +-----------------------------------------------+-----+
 ```
-As we can see, vehicle break-in are a huge problem in The City.  Let's see the neighborhoods that have the most car break-ins.
+As we can see, vehicle break-ins are a huge problem in The City.  
+<b>Let's see the neighborhoods that have the most car break-ins.</b>
 ```
 df.filter(col("description").like("%Theft, From Locked Vehicle%")) \
     .groupBy("neighborhood").count().sort(col("count").desc()).show()
@@ -209,7 +213,7 @@ df.filter(col("description").like("%Theft, From Locked Vehicle%")) \
 +------------------------------+-----+
 
 ```
-During 2019, show the average number of shopliftings reported each month.
+<b>During 2019, show the average number of shopliftings reported each month.</b>
 ```
 df.filter((col("description").like("%Shoplifting%")) & (df["year"] == 2019)) \
     .groupBy("month").count().groupBy("month").agg({'count' : 'avg'}).sort("month").show()
@@ -233,7 +237,7 @@ df.filter((col("description").like("%Shoplifting%")) & (df["year"] == 2019)) \
 |   12|     260.0|
 +-----+----------+
 ```
-Reported burglaries in each police district during 2019.
+<b>Reported burglaries in each police district during 2019.</b>
 ```
 df.filter((df["category"] == "Burglary") & (df["year"] == 2019)) \
     .groupBy("district").count().show()
@@ -255,4 +259,5 @@ df.filter((df["category"] == "Burglary") & (df["year"] == 2019)) \
 |  Richmond|  713|
 +----------+-----+
 ```
-The are examples of some of the capabitlies of Spark SQL and Dataframes for performing data analytics.  Of course, Spark can scale up to processing terabytes and even petabytes of Big Data in parallel on clusters of multiple computers.  In a future project, we will wrangle data at scale by setting up and running a Spark job on a multi-node cluster.
+
+These are examples of some of the capabitlies of Spark SQL and Dataframes for performing data analytics.  Of course, Spark can scale up to processing terabytes and even petabytes of Big Data in parallel on clusters of multiple computers.  In a future project, we will wrangle data at scale by setting up and running a Spark job on a multi-node cluster.
