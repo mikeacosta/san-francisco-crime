@@ -98,9 +98,6 @@ SELECT n.* FROM neighborhoods n LEFT OUTER JOIN
 ) x
 ON x.neighborhood_id = n.neighborhood_id
 WHERE x.incident_id IS NULL;
-) x
-ON x.neighborhood_id = n.neighborhood_id
-WHERE x.incident_id IS NULL;
 ```
 
 <p>
